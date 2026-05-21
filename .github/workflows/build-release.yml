@@ -8,68 +8,67 @@ on:
 
 env:
   MAJOR: ${{ vars.MAJOR }}
-  MINOR: 1334
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: LS
-        run: |
-          cat action.yml
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Setup Git
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Configure git
         run: |
           git config user.name evanallen13
           git config user.email evanallen12@gmail.com
-          git checkout -b release/v${{ vars.MAJOR }}
 
-      - name: npm install and build
+      - name: Commit built dist to release branch
         run: |
-          npm install
-          npm run build
-          ls -la
+          BRANCH="release/v${MAJOR}"
+          git checkout -B "$BRANCH"
+          git add dist
+          if git diff --cached --quiet; then
+            echo "No dist changes to commit."
+          else
+            git commit -m "Release v${MAJOR}"
+          fi
+          git push --force-with-lease origin "$BRANCH"
 
-      - name: Create Release Branch
+      - name: Tag release and move floating major tag
         run: |
-          git add .
-          git commit -m "Release v${{ vars.MAJOR }}"
-          git push origin release/v${{ vars.MAJOR }}
-      
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+          git tag -fa "v${MAJOR}" -m "Release v${MAJOR}"
+          git push --force origin "v${MAJOR}"
+
+      - name: Create GitHub release
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }} 
-        with:
-          tag_name: v${{ env.MAJOR }}
-          release_name: Release v${{ env.MAJOR }}
-          body: |
-            Changes in this Release
-          draft: false
-          prerelease: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${MAJOR}" \
+            --title "Release v${MAJOR}" \
+            --notes "Changes in this Release" \
+            --target "release/v${MAJOR}" || \
+          gh release edit "v${MAJOR}" \
+            --title "Release v${MAJOR}" \
+            --notes "Changes in this Release" \
+            --target "release/v${MAJOR}"
 
-      # - name: Upload Release Asset
-      #   id: upload-release-asset 
-      #   uses: actions/upload-release-asset@v1
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: "Increment Major"
+      - name: Increment MAJOR variable for next release
         uses: action-pack/increment@v2
         with:
           name: 'MAJOR'
           token: ${{ secrets.PAT_TOKEN }}
-
-  
