@@ -12,7 +12,7 @@ inputs:
     required: true
 
   RepoId:
-    description: "Repositoy Id can be found using github.repository_id"
+    description: "Repository ID, e.g. ${{ github.repository_id }}"
     required: true
 
   EnvironmentName:
@@ -20,7 +20,7 @@ inputs:
     required: true
 
   Token:
-    description: "Pat Token"
+    description: "Personal Access Token with permission to write environment variables (classic: 'repo' scope; fine-grained: Variables: read & write + Environments: read & write)"
     required: true
 
 runs:
