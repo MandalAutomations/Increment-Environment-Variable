@@ -6,9 +6,6 @@ on:
       - main
   workflow_dispatch:
 
-env:
-  MAJOR: ${{ vars.MAJOR }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,6 +16,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Compute next major version
+        id: ver
+        run: |
+          HIGHEST=$(git tag --list 'v*' | grep -E '^v[0-9]+$' | sed 's/^v//' | sort -n | tail -1)
+          NEXT=$(( ${HIGHEST:-0} + 1 ))
+          echo "major=${NEXT}" >> "$GITHUB_OUTPUT"
+          echo "Next major: v${NEXT}"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -37,6 +42,8 @@ jobs:
           git config user.email evanallen12@gmail.com
 
       - name: Commit built dist to release branch
+        env:
+          MAJOR: ${{ steps.ver.outputs.major }}
         run: |
           BRANCH="release/v${MAJOR}"
           git checkout -B "$BRANCH"
@@ -48,7 +55,9 @@ jobs:
           fi
           git push --force-with-lease origin "$BRANCH"
 
-      - name: Tag release and move floating major tag
+      - name: Tag release
+        env:
+          MAJOR: ${{ steps.ver.outputs.major }}
         run: |
           git tag -fa "v${MAJOR}" -m "Release v${MAJOR}"
           git push --force origin "v${MAJOR}"
@@ -56,6 +65,7 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAJOR: ${{ steps.ver.outputs.major }}
         run: |
           gh release create "v${MAJOR}" \
             --title "Release v${MAJOR}" \
@@ -65,9 +75,3 @@ jobs:
             --title "Release v${MAJOR}" \
             --notes "Changes in this Release" \
             --target "release/v${MAJOR}"
-
-      - name: Increment MAJOR variable for next release
-        uses: action-pack/increment@v2
-        with:
-          name: 'MAJOR'
-          token: ${{ secrets.PAT_TOKEN }}
